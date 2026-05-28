@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hearo — RCT Sample Size Calculator</title>
+  <meta name="description" content="Interactive sample size calculator for Hearo's clinical study comparing AI-assisted otoscopy to standard otoscopy." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: #fdf8ec; color: #2a2520; }
+    input[type="range"] { -webkit-appearance: auto; appearance: auto; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    const Z_VALUES = {
+      0.01: { one: 2.326, two: 2.576 },
+      0.025: { one: 1.96, two: 2.24 },
+      0.05: { one: 1.645, two: 1.96 },
+      0.10: { one: 1.282, two: 1.645 },
+    };
+
+    const POWER_Z = {
+      0.80: 0.845,
+      0.85: 1.036,
+      0.90: 1.282,
+      0.95: 1.645,
+    };
+
+    function calculateNonInferiority(p, delta0, alpha, power) {
+      const zAlpha = Z_VALUES[alpha]?.one || 1.645;
+      const zBeta = POWER_Z[power] || 0.845;
+      const n = 2 * Math.pow((zAlpha + zBeta) / delta0, 2) * p * (1 - p);
+      return Math.ceil(n);
+    }
+
+    function calculateEquivalence(p, delta0, alpha, power) {
+      const zAlpha = Z_VALUES[alpha]?.two || 1.96;
+      const zBeta = POWER_Z[power] || 0.845;
+      const n = 2 * Math.pow((zAlpha + zBeta) / delta0, 2) * p * (1 - p);
+      return Math.ceil(n);
+    }
+
+    function Slider({ label, value, onChange, min, max, step, format, sublabel }) {
+      return (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <div>
+              <span style={{ fontWeight: 600, fontSize: 14, color: "#2a2520", letterSpacing: "0.02em" }}>{label}</span>
+              {sublabel && <span style={{ fontSize: 12, color: "#8a7e6b", marginLeft: 8 }}>{sublabel}</span>}
+            </div>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#946b2d",
+              background: "rgba(148,107,45,0.08)",
+              padding: "2px 10px",
+              borderRadius: 6,
+            }}>
+              {format ? format(value) : value}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(e) => onChange(parseFloat(e.target.value))}
+            style={{ width: "100%", accentColor: "#b8860b", cursor: "pointer" }}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#a09580", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>
+            <span>{format ? format(min) : min}</span>
+            <span>{format ? format(max) : max}</span>
+          </div>
+        </div>
+      );
+    }
+
+    function ResultCard({ title, n, total, color, bgColor, description }) {
+      return (
+        <div style={{
+          background: bgColor,
+          border: `1px solid ${color}30`,
+          borderRadius: 14,
+          padding: "22px 24px",
+          flex: 1,
+          minWidth: 220,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: color, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
+            {title}
+          </div>
+          <div style={{ fontSize: 11, color: "#7a7060", marginBottom: 14, lineHeight: 1.4 }}>
+            {description}
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 40, fontWeight: 800, color: "#2a2520" }}>
+              {n}
+            </span>
+            <span style={{ fontSize: 13, color: "#7a7060" }}>per group</span>
+          </div>
+          <div style={{
+            marginTop: 10,
+            padding: "6px 12px",
+            background: "rgba(0,0,0,0.05)",
+            borderRadius: 8,
+            display: "inline-block",
+          }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: color }}>{total}</span>
+            <span style={{ fontSize: 12, color: "#7a7060", marginLeft: 6 }}>total (both groups)</span>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [p, setP] = useState(0.85);
+      const [delta0, setDelta0] = useState(0.10);
+      const [alpha, setAlpha] = useState(0.05);
+      const [power, setPower] = useState(0.80);
+      const [dropout, setDropout] = useState(0.15);
+
+      const results = useMemo(() => {
+        const nNI = calculateNonInferiority(p, delta0, alpha, power);
+        const nEQ = calculateEquivalence(p, delta0, alpha, power);
+        const inflateNI = Math.ceil(nNI / (1 - dropout));
+        const inflateEQ = Math.ceil(nEQ / (1 - dropout));
+        return { nNI, nEQ, inflateNI, inflateEQ };
+      }, [p, delta0, alpha, power, dropout]);
+
+      const alphaOptions = [0.01, 0.025, 0.05, 0.10];
+      const powerOptions = [0.80, 0.85, 0.90, 0.95];
+
+      return (
+        <div style={{ minHeight: "100vh", padding: "32px 24px" }}>
+
+          {/* Header */}
+          <div style={{ maxWidth: 720, margin: "0 auto", marginBottom: 36 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+              <div style={{
+                width: 10, height: 10, borderRadius: "50%",
+                background: "#b8860b",
+                boxShadow: "0 0 12px rgba(184,134,11,0.3)",
+              }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#946b2d", textTransform: "uppercase", letterSpacing: "0.15em" }}>
+                Hearo Clinical Study
+              </span>
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, lineHeight: 1.2, color: "#2a2520" }}>
+              RCT Sample Size Calculator
+            </h1>
+            <p style={{ fontSize: 13, color: "#8a7e6b", marginTop: 8, lineHeight: 1.5 }}>
+              Dichotomous outcome — Hearo-assisted vs. standard otoscopy diagnostic concordance.
+              Based on Zhong (2009), J Thorac Dis.
+            </p>
+          </div>
+
+          <div style={{ maxWidth: 720, margin: "0 auto" }}>
+
+            {/* Parameters */}
+            <div style={{
+              background: "rgba(255,255,255,0.6)",
+              border: "1px solid rgba(0,0,0,0.08)",
+              borderRadius: 16,
+              padding: "28px 28px 12px",
+              marginBottom: 24,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#946b2d", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 22 }}>
+                Study Parameters
+              </div>
+              <Slider label="Expected Concordance (p)" sublabel="Hearo vs standard agreement rate"
+                value={p} onChange={setP} min={0.50} max={0.99} step={0.01}
+                format={(v) => `${(v * 100).toFixed(0)}%`} />
+              <Slider label="Non-inferiority / Equivalence Margin (δ₀)" sublabel="Max acceptable accuracy drop"
+                value={delta0} onChange={setDelta0} min={0.03} max={0.20} step={0.01}
+                format={(v) => `${(v * 100).toFixed(0)}%`} />
+              <Slider label="Dropout / Unusable Rate" sublabel="Inflate sample to compensate"
+                value={dropout} onChange={setDropout} min={0.0} max={0.30} step={0.05}
+                format={(v) => `${(v * 100).toFixed(0)}%`} />
+            </div>
+
+            {/* Alpha & Power */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+              <div style={{
+                flex: 1, minWidth: 200,
+                background: "rgba(255,255,255,0.6)",
+                border: "1px solid rgba(0,0,0,0.08)",
+                borderRadius: 16, padding: "20px 24px",
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#946b2d", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>
+                  α (Type I Error)
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {alphaOptions.map((a) => (
+                    <button key={a} onClick={() => setAlpha(a)} style={{
+                      flex: 1, padding: "8px 0", borderRadius: 8,
+                      border: alpha === a ? "1.5px solid #b8860b" : "1px solid rgba(0,0,0,0.12)",
+                      background: alpha === a ? "rgba(184,134,11,0.1)" : "rgba(255,255,255,0.5)",
+                      color: alpha === a ? "#946b2d" : "#7a7060",
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600,
+                      cursor: "pointer", transition: "all 0.15s",
+                    }}>{a}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{
+                flex: 1, minWidth: 200,
+                background: "rgba(255,255,255,0.6)",
+                border: "1px solid rgba(0,0,0,0.08)",
+                borderRadius: 16, padding: "20px 24px",
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#946b2d", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>
+                  Power (1 − β)
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {powerOptions.map((pw) => (
+                    <button key={pw} onClick={() => setPower(pw)} style={{
+                      flex: 1, padding: "8px 0", borderRadius: 8,
+                      border: power === pw ? "1.5px solid #b8860b" : "1px solid rgba(0,0,0,0.12)",
+                      background: power === pw ? "rgba(184,134,11,0.1)" : "rgba(255,255,255,0.5)",
+                      color: power === pw ? "#946b2d" : "#7a7060",
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600,
+                      cursor: "pointer", transition: "all 0.15s",
+                    }}>{(pw * 100).toFixed(0)}%</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Results */}
+            <div style={{
+              background: "rgba(255,255,255,0.6)",
+              border: "1px solid rgba(0,0,0,0.08)",
+              borderRadius: 16, padding: "28px", marginBottom: 24,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#946b2d", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 20 }}>
+                Required Sample Size
+              </div>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+                <ResultCard title="Non-Inferiority" n={results.nNI} total={results.nNI * 2}
+                  color="#3d6b8e" bgColor="rgba(61,107,142,0.06)"
+                  description="Hearo is not worse than standard otoscopy by more than δ₀" />
+                <ResultCard title="Equivalence" n={results.nEQ} total={results.nEQ * 2}
+                  color="#4a7c47" bgColor="rgba(74,124,71,0.06)"
+                  description="Hearo and standard otoscopy agree within ±δ₀ (two-sided)" />
+              </div>
+
+              {dropout > 0 && (
+                <div style={{
+                  background: "rgba(184,134,11,0.06)",
+                  border: "1px solid rgba(184,134,11,0.15)",
+                  borderRadius: 12, padding: "16px 20px",
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#946b2d", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Adjusted for {(dropout * 100).toFixed(0)}% Dropout
+                  </div>
+                  <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+                    <div>
+                      <span style={{ fontSize: 12, color: "#7a7060" }}>Non-Inferiority: </span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: "#3d6b8e" }}>{results.inflateNI}</span>
+                      <span style={{ fontSize: 12, color: "#7a7060" }}> /group → </span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: "#3d6b8e" }}>{results.inflateNI * 2}</span>
+                      <span style={{ fontSize: 12, color: "#7a7060" }}> total</span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 12, color: "#7a7060" }}>Equivalence: </span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: "#4a7c47" }}>{results.inflateEQ}</span>
+                      <span style={{ fontSize: 12, color: "#7a7060" }}> /group → </span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 16, color: "#4a7c47" }}>{results.inflateEQ * 2}</span>
+                      <span style={{ fontSize: 12, color: "#7a7060" }}> total</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Formula Reference */}
+            <div style={{
+              background: "rgba(255,255,255,0.4)",
+              border: "1px solid rgba(0,0,0,0.06)",
+              borderRadius: 14, padding: "20px 24px", marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#a09580", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>
+                Formulas (Zhong 2009)
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#6b6050", lineHeight: 2 }}>
+                <div>Non-inf: N = 2 × ((z<sub>1−α</sub> + z<sub>1−β</sub>) / δ₀)² × p(1−p)</div>
+                <div>Equiv:&nbsp;&nbsp; N = 2 × ((z<sub>1−α/2</sub> + z<sub>1−β</sub>) / δ₀)² × p(1−p)</div>
+              </div>
+              <div style={{ fontSize: 11, color: "#a09580", marginTop: 10, lineHeight: 1.5 }}>
+                z<sub>1−α</sub> = {Z_VALUES[alpha]?.one} (one-sided) &nbsp;|&nbsp; z<sub>1−α/2</sub> = {Z_VALUES[alpha]?.two} (two-sided) &nbsp;|&nbsp; z<sub>1−β</sub> = {POWER_Z[power]}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
