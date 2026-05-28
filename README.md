@@ -1,4 +1,5 @@
 # hearo-sample-size-calculator
+
 Interactive tool for estimating the required sample size for Hearo's clinical validation study comparing AI-assisted otoscopy to standard otoscopy.
 
 **[Live Calculator →](https://vasilisniaouris.github.io/hearo-sample-size-calculator/)**
@@ -7,9 +8,10 @@ Interactive tool for estimating the required sample size for Hearo's clinical va
 
 ## Study Design
 
-- **Comparison:** Doctor A (using Hearo) vs. Doctor B (using standard otoscopy, ground truth)
+- **Design:** Paired — each subject's ear is examined by both Doctor A (using Hearo) and Doctor B (using standard otoscopy, ground truth)
 - **Outcome:** Binary — diagnosis is either concordant (correct) or discordant (incorrect)
-- **Unit of analysis:** Per subject, using one ear per patient
+- **Unit of analysis:** Per subject, one ear per patient
+- **N from calculator** = number of subjects = number of ears. Each ear gets two exams (one per method), so N = 200 means 200 ears and 400 total exams.
 
 ## Parameters You Need to Decide
 
@@ -32,7 +34,7 @@ $$N = 2 \times \left(\frac{z_{1-\alpha} + z_{1-\beta}}{\delta_0}\right)^2 \times
 
 $$N = 2 \times \left(\frac{z_{1-\alpha/2} + z_{1-\beta}}{\delta_0}\right)^2 \times p(1-p)$$
 
-Where *N* = subjects per group.
+Where *N* = number of subjects (= number of ears in the one-ear-per-subject design).
 
 ## Using Both Ears (Design Effect Correction)
 
@@ -64,9 +66,9 @@ With ρ = 0.5:
 
 $$DE = 1 + 0.5 = 1.5$$
 
-If the calculator gives N = 200 per group → adjusted N = 200 × 1.5 = **300 per group** (analyzing 600 ears total across both groups).
+If the calculator gives N = 200 → with one ear that's 200 ears, 400 exams. Adjusting for both ears: N × DE = 200 × 1.5 = **300 subjects** (600 ears, 1200 exams).
 
-A lower ρ (e.g., 0.2) gives DE = 1.2 → N = 240 per group. A higher ρ (e.g., 0.8) gives DE = 1.8 → N = 360 per group.
+A lower ρ (e.g., 0.2) gives DE = 1.2 → 240 subjects. A higher ρ (e.g., 0.8) gives DE = 1.8 → 360 subjects.
 
 ## Reference
 
