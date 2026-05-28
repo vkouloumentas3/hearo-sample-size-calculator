@@ -2,7 +2,7 @@
 
 Interactive tool for estimating the required sample size for Hearo's clinical validation study comparing AI-assisted otoscopy to standard otoscopy.
 
-**[Live Calculator →](https://vasilisniaouris.github.io/hearo-sample-size-calculator/)**
+**[Live Calculator →](https://vkouloumentas3.github.io/hearo-sample-size-calculator/)**
 
 ---
 
